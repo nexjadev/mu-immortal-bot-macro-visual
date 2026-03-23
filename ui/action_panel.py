@@ -214,6 +214,30 @@ class ActionPanel(QWidget):
     # Public API
     # ------------------------------------------------------------------
 
+    def get_emulator(self) -> dict:
+        """Return the current emulator field values as a dict."""
+        return {
+            "host": self._host.text().strip() or _DEFAULT_HOST,
+            "port": self._port.value(),
+            "window_title": self._title.text().strip(),
+        }
+
+    def get_cycle_delay(self) -> int:
+        """Return the current cycle delay value in milliseconds."""
+        return self._cycle_delay.value()
+
+    def set_emulator(self, emulator: dict) -> None:
+        """Populate the emulator input fields from a loaded script.
+
+        Parameters
+        ----------
+        emulator:
+            Dict with keys ``host``, ``port``, ``window_title``.
+        """
+        self._host.setText(emulator.get("host", ""))
+        self._port.setValue(emulator.get("port", _DEFAULT_PORT))
+        self._title.setText(emulator.get("window_title", ""))
+
     def set_actions(self, actions: list[dict]) -> None:
         """
         Populate the list widget from *actions*.
@@ -258,7 +282,7 @@ class ActionPanel(QWidget):
             One of ``'disconnected'``, ``'connected'``, ``'running'``,
             ``'error'``.
         """
-        if state == "connected":
+        if state in ("connected", "stopped"):
             self._btn_connect.setEnabled(False)
             self._btn_start.setEnabled(True)
             self._btn_stop.setEnabled(False)

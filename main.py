@@ -78,8 +78,24 @@ def main() -> None:
     window.on_start.connect(orchestrator.start_bot)
     window.on_stop.connect(orchestrator.stop_bot)
     window.on_load.connect(orchestrator.load_script)
-    window.on_save.connect(orchestrator.save_script)
+
+    def _do_save(path: str) -> None:
+        """Sincroniza los valores actuales de la UI al script antes de guardar."""
+        orchestrator.sync_ui_data(
+            emulator=window.get_emulator_config(),
+            cycle_delay=window.get_cycle_delay(),
+        )
+        orchestrator.save_script(path)
+
+    window.on_save.connect(_do_save)
     window.on_actions_changed.connect(orchestrator.sync_actions)
+
+    def _on_script_loaded(script: dict) -> None:
+        """Actualiza la UI completa tras cargar un script JSON."""
+        window.set_rois(script.get("actions", []))
+        window._panel.set_emulator(script.get("emulator", {}))
+
+    orchestrator.on_script_loaded = _on_script_loaded
 
     def _do_refresh() -> None:
         """Captura screenshot del emulador y actualiza el canvas."""
@@ -96,7 +112,7 @@ def main() -> None:
 
     # Set initial visual state.
     window.set_state("disconnected")
-    window.show()
+    window.showMaximized()
 
     sys.exit(app.exec())
 

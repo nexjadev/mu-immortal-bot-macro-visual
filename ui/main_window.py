@@ -11,6 +11,7 @@ from outside the ui/ package.
 from PyQt6.QtWidgets import (
     QMainWindow,
     QWidget,
+    QVBoxLayout,
     QSplitter,
     QScrollArea,
     QToolBar,
@@ -38,6 +39,7 @@ _STATE_LABELS: dict[str, tuple[str, str]] = {
     "disconnected": ("Desconectado", "#888888"),
     "connected":    ("Conectado",    "#27ae60"),
     "running":      ("Ejecutando",   "#2980b9"),
+    "stopped":      ("Detenido",     "#27ae60"),
     "error":        ("Error",        "#e74c3c"),
 }
 
@@ -120,12 +122,18 @@ class MainWindow(QMainWindow):
 
         self._canvas = ROICanvas()
 
-        # Envolver el canvas en QScrollArea para soporte de scroll
-        # cuando la imagen es más grande que el área visible.
+        # Contenedor que centra el canvas dentro del scroll area.
+        # setWidgetResizable(True) hace que el contenedor llene el viewport;
+        # el canvas (tamaño fijo) queda centrado cuando el área es mayor,
+        # y aparecen scrollbars cuando la imagen es más grande que el área.
+        _container = QWidget()
+        _layout = QVBoxLayout(_container)
+        _layout.setContentsMargins(0, 0, 0, 0)
+        _layout.addWidget(self._canvas, 0, Qt.AlignmentFlag.AlignCenter)
+
         self._scroll = QScrollArea()
-        self._scroll.setWidget(self._canvas)
-        self._scroll.setWidgetResizable(False)  # canvas mantiene tamaño natural
-        self._scroll.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self._scroll.setWidget(_container)
+        self._scroll.setWidgetResizable(True)
 
         self._panel = ActionPanel()
         self._panel.setFixedWidth(_PANEL_WIDTH)
@@ -175,6 +183,14 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Public API (called by the Orchestrator)
     # ------------------------------------------------------------------
+
+    def get_emulator_config(self) -> dict:
+        """Return the current emulator field values from the panel."""
+        return self._panel.get_emulator()
+
+    def get_cycle_delay(self) -> int:
+        """Return the current cycle delay value from the panel."""
+        return self._panel.get_cycle_delay()
 
     def set_screenshot(self, pixmap: QPixmap) -> None:
         """

@@ -77,9 +77,11 @@ class Orchestrator:
         self._script: Optional[dict] = None
         self._bot_thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
+        self._window_title: str = ""   # último window_title recibido de la UI
 
         # Public: wired by main.py after construction.
         self.on_state_change: Optional[Callable[[str], None]] = None
+        self.on_script_loaded: Optional[Callable[[dict], None]] = None
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -113,6 +115,14 @@ class Orchestrator:
         """
         self._adb.host = host
         self._adb.port = port
+        self._window_title = window_title
+        # Mantener _script["emulator"] sincronizado si ya hay script en memoria
+        if self._script is not None:
+            self._script["emulator"] = {
+                "host": host,
+                "port": port,
+                "window_title": window_title,
+            }
         self._notify("connecting")
         try:
             self._adb.connect()
@@ -137,9 +147,31 @@ class Orchestrator:
             self._script = self._script_manager.load(path)
             self._logger.info(f"Script cargado: {path}")
             self._engine.load_actions(self._script["actions"])
+            if self.on_script_loaded is not None:
+                self.on_script_loaded(self._script)
         except (ScriptNotFoundError, ScriptValidationError) as e:
             self._logger.error(f"Error al cargar script: {e}")
             self._notify("error")
+
+    def sync_ui_data(self, emulator: dict, cycle_delay: int) -> None:
+        """Apply current UI field values to the in-memory script.
+
+        Called by main.py just before saving so the JSON always reflects
+        what the user sees on screen, regardless of whether they clicked
+        Connect or Start first.
+
+        Args:
+            emulator:    Dict with host, port, window_title from the panel.
+            cycle_delay: Cycle delay in milliseconds from the panel.
+        """
+        if self._script is None:
+            return
+        self._script["emulator"] = emulator
+        self._script["cycle_delay"] = cycle_delay
+        # Keep ADBController in sync too
+        self._adb.host = emulator.get("host", self._adb.host)
+        self._adb.port = emulator.get("port", self._adb.port)
+        self._window_title = emulator.get("window_title", self._window_title)
 
     def save_script(self, path: str) -> None:
         """Persist the currently loaded script to disk.
@@ -184,7 +216,7 @@ class Orchestrator:
                 "emulator": {
                     "host": self._adb.host,
                     "port": self._adb.port,
-                    "window_title": "",
+                    "window_title": self._window_title,
                 },
                 "actions": actions,
                 "cycle_delay": 500,
@@ -235,6 +267,9 @@ class Orchestrator:
         if self._script is None:
             self._logger.warn("No hay script cargado")
             return
+
+        # Sincronizar cycle_delay de la UI al script antes de ejecutar/guardar
+        self._script["cycle_delay"] = cycle_delay_ms
 
         try:
             self.validate_resolution()
