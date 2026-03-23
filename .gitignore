@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Entorno virtual
+venv/
+.venv/
+env/
+
+# Logs de sesión generados por BotLogger
+logs/
+
+# Scripts de usuario (datos, no código)
+scripts/
+
+# Perfiles de emulador
+config/profiles.json
+
+# Archivos temporales de tests
+tests/_tmp_*.json
+
+# Variables de entorno
+.env
+.env.*
+
+# Imágenes de templates (v2 - backlog)
+templates/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema operativo
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Distribución / empaquetado
+*.spec
+*.manifest

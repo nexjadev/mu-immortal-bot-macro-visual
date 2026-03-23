@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__claude_ai_Notion__notion-search",
+      "mcp__claude_ai_Notion__notion-fetch",
+      "Bash(dir:*)",
+      "Bash(venv/Scripts/python.exe -m pytest tests/test_logger.py -v)",
+      "Bash(cmd /c \"cd /d D:\\\\mu-immortal-bot-macro-visual && venv\\\\Scripts\\\\python.exe -m pytest tests\\\\test_logger.py -v\" 2>&1)",
+      "Bash(cmd.exe /c \"cd /d D:\\\\mu-immortal-bot-macro-visual && venv\\\\Scripts\\\\python.exe -m unittest tests.test_logger -v 2>&1\")",
+      "Bash(venv/Scripts/python.exe -m unittest tests.test_script_manager -v)",
+      "Bash(\"D:/mu-immortal-bot-macro-visual/venv/Scripts/python.exe\" -m unittest tests.test_script_manager -v 2>&1)",
+      "Bash(\"D:/mu-immortal-bot-macro-visual/venv/Scripts/python.exe\" -m unittest tests.test_script_manager -v)",
+      "Bash(\"D:/mu-immortal-bot-macro-visual/venv/Scripts/python.exe\" -c \"import sys; sys.path.insert\\(0, 'D:/mu-immortal-bot-macro-visual'\\); from core.script_manager import ScriptManager; print\\('import ok'\\)\" 2>&1)",
+      "Bash(python -c \"print\\(''hello''\\)\")",
+      "Bash(python -m pytest tests/test_bot_engine.py -v)",
+      "Bash(python -m pytest tests/test_integration.py -v)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(python \"D:/mu-immortal-bot-macro-visual/tests/test_integration.py\")"
+    ]
+  }
+}

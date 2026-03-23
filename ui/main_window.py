@@ -1,0 +1,274 @@
+"""
+ui/main_window.py
+Root application window for mu-immortal-bot-macro-visual.
+
+This module is the sole integration point for all UI sub-widgets.
+It owns no business logic — all external communication happens via
+the public signals defined below, which the Orchestrator connects to
+from outside the ui/ package.
+"""
+
+from PyQt6.QtWidgets import (
+    QMainWindow,
+    QWidget,
+    QSplitter,
+    QToolBar,
+    QLabel,
+    QFileDialog,
+    QMessageBox,
+    QStatusBar,
+)
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QAction, QPixmap
+
+from ui.roi_canvas import ROICanvas
+from ui.action_panel import ActionPanel
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+_WINDOW_TITLE: str = "MU Immortal Bot"
+_MIN_WIDTH: int = 900
+_MIN_HEIGHT: int = 600
+_PANEL_WIDTH: int = 280
+
+_STATE_LABELS: dict[str, tuple[str, str]] = {
+    "disconnected": ("Desconectado", "#888888"),
+    "connected":    ("Conectado",    "#27ae60"),
+    "running":      ("Ejecutando",   "#2980b9"),
+    "error":        ("Error",        "#e74c3c"),
+}
+
+
+class MainWindow(QMainWindow):
+    """
+    Primary window that hosts the ROICanvas (left) and ActionPanel (right).
+
+    All external communication is exposed through the signals below.
+    The Orchestrator must connect to these signals after constructing the
+    window — MainWindow never calls into ``core/`` directly.
+
+    Signals
+    -------
+    on_connect(str, int, str)
+        Forwarded from ActionPanel.connect_requested.
+        Arguments: (host, port, window_title).
+    on_start(int, int)
+        Forwarded from ActionPanel.start_requested.
+        Arguments: (cycles, cycle_delay_ms).
+    on_stop()
+        Forwarded from ActionPanel.stop_requested.
+    on_save(str)
+        Emitted with the file path chosen in the Save dialog.
+    on_load(str)
+        Emitted with the file path chosen in the Open dialog.
+    """
+
+    on_connect = pyqtSignal(str, int, str)
+    on_start = pyqtSignal(int, int)
+    on_stop = pyqtSignal()
+    on_save = pyqtSignal(str)
+    on_load = pyqtSignal(str)
+
+    # ------------------------------------------------------------------
+    # Construction
+    # ------------------------------------------------------------------
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._rois: list[dict] = []
+        self._setup_ui()
+        self._connect_signals()
+
+    def _setup_ui(self) -> None:
+        """Build the window layout: toolbar, splitter, status bar."""
+        self.setWindowTitle(_WINDOW_TITLE)
+        self.setMinimumSize(_MIN_WIDTH, _MIN_HEIGHT)
+
+        self._build_toolbar()
+        self._build_central_widget()
+        self._build_status_bar()
+
+    def _build_toolbar(self) -> None:
+        """Create the main toolbar with file actions and a status label."""
+        toolbar = QToolBar("Principal")
+        toolbar.setMovable(False)
+        self.addToolBar(toolbar)
+
+        self._act_new = QAction("Nuevo", self)
+        self._act_open = QAction("Abrir", self)
+        self._act_save = QAction("Guardar", self)
+
+        toolbar.addAction(self._act_new)
+        toolbar.addAction(self._act_open)
+        toolbar.addAction(self._act_save)
+
+        toolbar.addSeparator()
+        toolbar.addWidget(QLabel(" Estado: "))
+
+        self._status_label = QLabel("Desconectado")
+        self._status_label.setStyleSheet("color: #888888; font-weight: bold;")
+        toolbar.addWidget(self._status_label)
+
+    def _build_central_widget(self) -> None:
+        """Create the horizontal splitter with canvas (left) and panel (right)."""
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        self._canvas = ROICanvas()
+        self._panel = ActionPanel()
+        self._panel.setFixedWidth(_PANEL_WIDTH)
+
+        splitter.addWidget(self._canvas)
+        splitter.addWidget(self._panel)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 0)
+
+        self.setCentralWidget(splitter)
+
+    def _build_status_bar(self) -> None:
+        """Attach a QStatusBar for brief transient messages."""
+        status_bar = QStatusBar(self)
+        self.setStatusBar(status_bar)
+
+    # ------------------------------------------------------------------
+    # Signal wiring
+    # ------------------------------------------------------------------
+
+    def _connect_signals(self) -> None:
+        """Wire internal signals between sub-widgets and outward signals."""
+        # Panel → outward signals
+        self._panel.connect_requested.connect(self.on_connect)
+        self._panel.start_requested.connect(self.on_start)
+        self._panel.stop_requested.connect(self.on_stop)
+
+        # Toolbar actions
+        self._act_new.triggered.connect(self._action_new)
+        self._act_open.triggered.connect(self._action_open)
+        self._act_save.triggered.connect(self._action_save)
+
+        # Canvas ROI signals → internal state update + panel sync
+        self._canvas.roi_created.connect(self._on_roi_created)
+        self._canvas.roi_edited.connect(self._on_roi_edited)
+        self._canvas.roi_deleted.connect(self._on_roi_deleted)
+
+    # ------------------------------------------------------------------
+    # Public API (called by the Orchestrator)
+    # ------------------------------------------------------------------
+
+    def set_screenshot(self, pixmap: QPixmap) -> None:
+        """
+        Push a new screenshot onto the canvas.
+
+        Parameters
+        ----------
+        pixmap:
+            The captured frame to display as the canvas background.
+        """
+        self._canvas.set_screenshot(pixmap)
+
+    def set_rois(self, rois: list[dict]) -> None:
+        """
+        Synchronise both the canvas overlay and the action panel list.
+
+        Parameters
+        ----------
+        rois:
+            Ordered list of action dicts to display and manage.
+        """
+        self._rois = list(rois)
+        self._canvas.set_rois(self._rois)
+        self._panel.set_actions(self._rois)
+
+    def set_state(self, state: str) -> None:
+        """
+        Update the visual state indicator and action panel button states.
+
+        Parameters
+        ----------
+        state:
+            One of ``'disconnected'``, ``'connected'``, ``'running'``,
+            ``'error'``.
+        """
+        text, color = _STATE_LABELS.get(state, ("Desconocido", "#888888"))
+        self._status_label.setText(text)
+        self._status_label.setStyleSheet(f"color: {color}; font-weight: bold;")
+        self._panel.set_state(state)
+
+    # ------------------------------------------------------------------
+    # Toolbar action slots
+    # ------------------------------------------------------------------
+
+    def _action_new(self) -> None:
+        """Clear the current script after user confirmation."""
+        answer = QMessageBox.question(
+            self,
+            "Nuevo script",
+            "¿Descartar el script actual y comenzar uno nuevo?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self.set_rois([])
+
+    def _action_open(self) -> None:
+        """Open a file dialog and emit on_load with the chosen path."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Abrir script", "scripts/", "JSON (*.json)"
+        )
+        if path:
+            self.on_load.emit(path)
+
+    def _action_save(self) -> None:
+        """Open a save dialog and emit on_save with the chosen path."""
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Guardar script", "scripts/", "JSON (*.json)"
+        )
+        if path:
+            self.on_save.emit(path)
+
+    # ------------------------------------------------------------------
+    # Canvas signal handlers
+    # ------------------------------------------------------------------
+
+    def _on_roi_created(self, data: dict) -> None:
+        """
+        Append the new ROI action to the internal list and refresh both
+        the canvas and the panel.
+        """
+        self._rois.append(data)
+        self.set_rois(self._rois)
+
+    def _on_roi_edited(self, roi_id: str, data: dict) -> None:
+        """
+        Update the fields of an existing ROI action in-place, preserving
+        its ``id`` and ``enabled`` state unless the caller overrides them.
+        """
+        for i, roi in enumerate(self._rois):
+            if roi["id"] == roi_id:
+                # Keep the id; caller may not include it.
+                data["id"] = roi_id
+                # Preserve enabled state if the dialog didn't set it.
+                data.setdefault("enabled", roi.get("enabled", True))
+                self._rois[i] = data
+                break
+        self.set_rois(self._rois)
+
+    def _on_roi_deleted(self, roi_id: str) -> None:
+        """Remove the ROI with the given id and refresh the UI."""
+        self._rois = [r for r in self._rois if r["id"] != roi_id]
+        self.set_rois(self._rois)
+
+    # ------------------------------------------------------------------
+    # Window lifecycle
+    # ------------------------------------------------------------------
+
+    def closeEvent(self, event) -> None:
+        """
+        Intercept the close event to allow graceful shutdown.
+
+        The Orchestrator should connect to ``on_stop`` to halt any running
+        macro before the window disappears.  Here we simply emit on_stop
+        (a no-op if nothing is running) and then accept the event.
+        """
+        self.on_stop.emit()
+        event.accept()
