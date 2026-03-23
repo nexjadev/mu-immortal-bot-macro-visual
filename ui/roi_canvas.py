@@ -64,13 +64,17 @@ class ROICanvas(QLabel):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.setMouseTracking(True)
 
         self._rois: list[dict] = []
         self._rubber_band = QRubberBand(QRubberBand.Shape.Rectangle, self)
         self._drag_origin: QPoint = QPoint()
         self._image_size: QSize = QSize(1280, 720)
+        self.setFixedSize(self._image_size)
+
+    def sizeHint(self) -> QSize:
+        return self._image_size
 
     # ------------------------------------------------------------------
     # Public API
@@ -83,6 +87,7 @@ class ROICanvas(QLabel):
         """
         self.setPixmap(pixmap)
         self._image_size = pixmap.size()
+        self.setFixedSize(self._image_size)
         self.update()
 
     def set_rois(self, rois: list[dict]) -> None:
@@ -104,19 +109,10 @@ class ROICanvas(QLabel):
 
     def _scale_factor(self) -> tuple[float, float]:
         """
-        Return (sx, sy) — the ratio of widget pixels to image pixels.
-
-        Falls back to (1.0, 1.0) when no pixmap is loaded or the image
-        dimensions are degenerate.
+        Return (1.0, 1.0) — widget is always fixed to the image natural size,
+        so widget pixels == image pixels with no conversion needed.
         """
-        pm = self.pixmap()
-        if pm is None or pm.isNull():
-            return (1.0, 1.0)
-        iw = self._image_size.width()
-        ih = self._image_size.height()
-        if iw == 0 or ih == 0:
-            return (1.0, 1.0)
-        return (self.width() / iw, self.height() / ih)
+        return (1.0, 1.0)
 
     def _widget_rect(self, roi: dict) -> QRect:
         """

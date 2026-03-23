@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QMainWindow,
     QWidget,
     QSplitter,
+    QScrollArea,
     QToolBar,
     QLabel,
     QFileDialog,
@@ -19,7 +20,7 @@ from PyQt6.QtWidgets import (
     QStatusBar,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QAction, QPixmap
+from PyQt6.QtGui import QAction, QPixmap, QKeySequence, QShortcut
 
 from ui.roi_canvas import ROICanvas
 from ui.action_panel import ActionPanel
@@ -70,6 +71,8 @@ class MainWindow(QMainWindow):
     on_stop = pyqtSignal()
     on_save = pyqtSignal(str)
     on_load = pyqtSignal(str)
+    on_refresh = pyqtSignal()
+    on_actions_changed = pyqtSignal(list)   # emitida cuando la lista de acciones cambia
 
     # ------------------------------------------------------------------
     # Construction
@@ -116,10 +119,18 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
         self._canvas = ROICanvas()
+
+        # Envolver el canvas en QScrollArea para soporte de scroll
+        # cuando la imagen es más grande que el área visible.
+        self._scroll = QScrollArea()
+        self._scroll.setWidget(self._canvas)
+        self._scroll.setWidgetResizable(False)  # canvas mantiene tamaño natural
+        self._scroll.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+
         self._panel = ActionPanel()
         self._panel.setFixedWidth(_PANEL_WIDTH)
 
-        splitter.addWidget(self._canvas)
+        splitter.addWidget(self._scroll)
         splitter.addWidget(self._panel)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 0)
@@ -139,8 +150,13 @@ class MainWindow(QMainWindow):
         """Wire internal signals between sub-widgets and outward signals."""
         # Panel → outward signals
         self._panel.connect_requested.connect(self.on_connect)
+        self._panel.refresh_requested.connect(self.on_refresh)
         self._panel.start_requested.connect(self.on_start)
         self._panel.stop_requested.connect(self.on_stop)
+
+        # Hotkey global de emergencia: Escape detiene el bot
+        _emergency_stop = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
+        _emergency_stop.activated.connect(self.on_stop)
 
         # Toolbar actions
         self._act_new.triggered.connect(self._action_new)
@@ -151,6 +167,10 @@ class MainWindow(QMainWindow):
         self._canvas.roi_created.connect(self._on_roi_created)
         self._canvas.roi_edited.connect(self._on_roi_edited)
         self._canvas.roi_deleted.connect(self._on_roi_deleted)
+
+        # Panel action list changes → update internal state
+        self._panel.action_toggled.connect(self._on_action_toggled)
+        self._panel.action_reordered.connect(self._on_action_reordered)
 
     # ------------------------------------------------------------------
     # Public API (called by the Orchestrator)
@@ -179,6 +199,7 @@ class MainWindow(QMainWindow):
         self._rois = list(rois)
         self._canvas.set_rois(self._rois)
         self._panel.set_actions(self._rois)
+        self.on_actions_changed.emit(self._rois)
 
     def set_state(self, state: str) -> None:
         """
@@ -257,6 +278,21 @@ class MainWindow(QMainWindow):
         """Remove the ROI with the given id and refresh the UI."""
         self._rois = [r for r in self._rois if r["id"] != roi_id]
         self.set_rois(self._rois)
+
+    def _on_action_toggled(self, roi_id: str, enabled: bool) -> None:
+        """Update the enabled state of an action from the panel checkbox."""
+        for roi in self._rois:
+            if roi["id"] == roi_id:
+                roi["enabled"] = enabled
+                break
+        self.on_actions_changed.emit(self._rois)
+
+    def _on_action_reordered(self, ordered_ids: list) -> None:
+        """Reorder internal ROI list to match the panel drag-and-drop order."""
+        id_to_roi = {r["id"]: r for r in self._rois}
+        self._rois = [id_to_roi[i] for i in ordered_ids if i in id_to_roi]
+        self._canvas.set_rois(self._rois)
+        self.on_actions_changed.emit(self._rois)
 
     # ------------------------------------------------------------------
     # Window lifecycle

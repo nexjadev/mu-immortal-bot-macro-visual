@@ -15,9 +15,11 @@ Architecture notes:
   the callback from.
 """
 
+import io
 import sys
 
 from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QApplication
 
 from core.orchestrator import Orchestrator
@@ -77,6 +79,20 @@ def main() -> None:
     window.on_stop.connect(orchestrator.stop_bot)
     window.on_load.connect(orchestrator.load_script)
     window.on_save.connect(orchestrator.save_script)
+    window.on_actions_changed.connect(orchestrator.sync_actions)
+
+    def _do_refresh() -> None:
+        """Captura screenshot del emulador y actualiza el canvas."""
+        img = orchestrator.get_screenshot()
+        if img is None:
+            return
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        pixmap = QPixmap()
+        pixmap.loadFromData(buf.getvalue())
+        window.set_screenshot(pixmap)
+
+    window.on_refresh.connect(_do_refresh)
 
     # Set initial visual state.
     window.set_state("disconnected")

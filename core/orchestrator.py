@@ -158,6 +158,40 @@ class Orchestrator:
         except Exception as e:
             self._logger.error(f"Error al guardar script: {e}", exc=e)
 
+    def sync_actions(self, actions: list) -> None:
+        """Sync the action list from the UI canvas into the engine.
+
+        Called every time the user adds, edits, deletes, toggles, or reorders
+        ROIs in the canvas without loading a JSON script file.  Creates a
+        minimal in-memory script if none is loaded yet, so start_bot() can
+        proceed.
+
+        Args:
+            actions: Ordered list of action dicts from MainWindow.
+        """
+        self._engine.load_actions(actions)
+
+        if self._script is None:
+            # No JSON loaded — create a minimal in-memory script.
+            # Resolution 0×0 signals validate_resolution() to skip the check.
+            self._script = {
+                "meta": {
+                    "name": "Sin título",
+                    "resolution": {"width": 0, "height": 0},
+                    "created_at": "",
+                    "version": "1.0",
+                },
+                "emulator": {
+                    "host": self._adb.host,
+                    "port": self._adb.port,
+                    "window_title": "",
+                },
+                "actions": actions,
+                "cycle_delay": 500,
+            }
+        else:
+            self._script["actions"] = actions
+
     def validate_resolution(self) -> None:
         """Check that the device resolution matches the script's expected resolution.
 
@@ -177,6 +211,9 @@ class Orchestrator:
             device_res = self._adb.get_resolution()
             script_res = self._script["meta"]["resolution"]
             sw, sh = script_res["width"], script_res["height"]
+            # 0×0 significa script creado desde UI sin referencia de resolución → omitir
+            if sw == 0 and sh == 0:
+                return
             dw, dh = device_res
             if sw != dw or sh != dh:
                 raise ResolutionMismatchError(script_res, device_res)

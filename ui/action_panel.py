@@ -59,6 +59,7 @@ class ActionPanel(QWidget):
     """
 
     connect_requested = pyqtSignal(str, int, str)
+    refresh_requested = pyqtSignal()
     action_toggled = pyqtSignal(str, bool)
     action_reordered = pyqtSignal(list)
     start_requested = pyqtSignal(int, int)
@@ -108,8 +109,12 @@ class ActionPanel(QWidget):
         self._title.setPlaceholderText("Título ventana")
         form.addRow("Ventana:", self._title)
 
+        btn_row = QHBoxLayout()
         self._btn_connect = QPushButton("Conectar")
-        form.addRow("", self._btn_connect)
+        self._btn_refresh = QPushButton("Refrescar captura")
+        btn_row.addWidget(self._btn_connect)
+        btn_row.addWidget(self._btn_refresh)
+        form.addRow(btn_row)
 
         return group
 
@@ -169,6 +174,7 @@ class ActionPanel(QWidget):
     def _connect_signals(self) -> None:
         """Connect all internal widget signals to slots or outgoing signals."""
         self._btn_connect.clicked.connect(self._emit_connect)
+        self._btn_refresh.clicked.connect(self.refresh_requested.emit)
         self._btn_start.clicked.connect(self._emit_start)
         self._btn_stop.clicked.connect(self.stop_requested.emit)
         self._list.itemChanged.connect(self._on_item_changed)
