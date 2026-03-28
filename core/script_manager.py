@@ -54,7 +54,7 @@ class ScriptManager:
         VALID_CLICK_TYPES: Set of accepted values for ``click_type`` in actions.
     """
 
-    VALID_CLICK_TYPES: set[str] = {"single", "double", "long_press"}
+    VALID_CLICK_TYPES: set[str] = {"single", "double", "long_press", "verify_image"}
 
     # ------------------------------------------------------------------
     # Script I/O
@@ -214,7 +214,7 @@ class ScriptManager:
             if action.get("click_type") not in self.VALID_CLICK_TYPES:
                 raise ScriptValidationError(
                     f"{prefix}.click_type",
-                    "debe ser single|double|long_press",
+                    "debe ser single|double|long_press|verify_image",
                 )
 
             # delay_before — int >= 0
@@ -245,6 +245,33 @@ class ScriptManager:
                 raise ScriptValidationError(
                     f"{prefix}.on_error", "campo requerido ausente"
                 )
+
+            # Campos exclusivos de verify_image
+            if action.get("click_type") == "verify_image":
+                tp = action.get("template_path")
+                if not isinstance(tp, str) or not tp.strip():
+                    raise ScriptValidationError(
+                        f"{prefix}.template_path", "requerido para verify_image"
+                    )
+                mr = action.get("max_retries")
+                if isinstance(mr, bool) or not isinstance(mr, int) or mr < 0:
+                    raise ScriptValidationError(
+                        f"{prefix}.max_retries", "debe ser int >= 0"
+                    )
+                rd = action.get("retry_delay_ms")
+                if isinstance(rd, bool) or not isinstance(rd, int) or rd < 0:
+                    raise ScriptValidationError(
+                        f"{prefix}.retry_delay_ms", "debe ser int >= 0"
+                    )
+                thr = action.get("threshold")
+                if (
+                    isinstance(thr, bool)
+                    or not isinstance(thr, (int, float))
+                    or not (0.0 <= thr <= 1.0)
+                ):
+                    raise ScriptValidationError(
+                        f"{prefix}.threshold", "debe ser float en [0.0, 1.0]"
+                    )
 
     # ------------------------------------------------------------------
     # Profile I/O

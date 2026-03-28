@@ -10,6 +10,8 @@ v2 — estructura documentada, sin implementar: check_condition(),
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from PIL import Image
 
 from core.adb_controller import ADBController
@@ -124,11 +126,39 @@ class VisualDetector:
             ``True`` si se encontró la plantilla con score >= threshold.
 
         Raises:
-            NotImplementedError: Siempre (v2 pendiente).
-            FileNotFoundError:   (v2) Si ``template_path`` no existe.
-            ValueError:          (v2) Si ``threshold`` no está en [0.0, 1.0].
+            FileNotFoundError: Si ``template_path`` no existe.
+            ValueError:        Si ``threshold`` no está en [0.0, 1.0].
         """
-        raise NotImplementedError("v2 - pendiente")
+        if not (0.0 <= threshold <= 1.0):
+            raise ValueError(
+                f"threshold debe estar en [0.0, 1.0], recibido: {threshold}"
+            )
+        if not Path(template_path).is_file():
+            raise FileNotFoundError(f"Template no encontrado: {template_path}")
+
+        import cv2          # lazy: no rompe entornos sin cv2
+        import numpy as np
+
+        frame_np = cv2.cvtColor(
+            np.array(frame.convert("RGB")), cv2.COLOR_RGB2BGR
+        )
+        crop = frame_np[
+            roi["y"] : roi["y"] + roi["h"],
+            roi["x"] : roi["x"] + roi["w"],
+        ]
+        crop_gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+
+        tpl = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
+        if tpl is None:
+            raise FileNotFoundError(f"cv2 no pudo leer: {template_path}")
+
+        # Template más grande que el ROI → imposible encontrar
+        if tpl.shape[0] > crop_gray.shape[0] or tpl.shape[1] > crop_gray.shape[1]:
+            return False
+
+        result = cv2.matchTemplate(crop_gray, tpl, cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, _ = cv2.minMaxLoc(result)
+        return bool(max_val >= threshold)
 
     def detect_color_change(
         self,

@@ -260,5 +260,11 @@ class ROICanvas(QLabel):
         if idx2 >= 0:
             dlg._on_error.setCurrentIndex(idx2)
 
+        if roi.get("click_type") == "verify_image":
+            dlg._template_path_edit.setText(roi.get("template_path", ""))
+            dlg._threshold.setValue(roi.get("threshold", 0.8))
+            dlg._max_retries.setValue(roi.get("max_retries", 5))
+            dlg._retry_delay_ms.setValue(roi.get("retry_delay_ms", 1000))
+
         if dlg.exec() == _DIALOG_ACCEPTED:
             self.roi_edited.emit(roi["id"], dlg.get_data())

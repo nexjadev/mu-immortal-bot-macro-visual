@@ -23,6 +23,7 @@ from core.adb_controller import ADBController, ADBCommandError, ADBConnectionErr
 from core.bot_engine import BotEngine
 from core.logger import BotLogger
 from core.script_manager import ScriptManager, ScriptNotFoundError, ScriptValidationError
+from core.visual_detector import VisualDetector
 
 
 # ---------------------------------------------------------------------------
@@ -72,7 +73,8 @@ class Orchestrator:
         self._logger = BotLogger()
         self._script_manager = ScriptManager()
         self._adb = ADBController()
-        self._engine = BotEngine(self._adb, self._logger)
+        self._detector = VisualDetector()
+        self._engine = BotEngine(self._adb, self._logger, self._detector)
 
         self._script: Optional[dict] = None
         self._bot_thread: Optional[threading.Thread] = None

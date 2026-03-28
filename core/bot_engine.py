@@ -15,6 +15,12 @@ from typing import Callable, Optional
 
 from core.adb_controller import ADBConnectionError, ADBController
 from core.logger import BotLogger
+from core.visual_detector import VisualDetector
+
+
+class VerifyImageError(Exception):
+    """Raised when verify_image fails to find the template after all retries."""
+    pass
 
 
 class BotEngine:
@@ -33,16 +39,24 @@ class BotEngine:
                   error occurs.  Receives the exception instance.
     """
 
-    def __init__(self, adb: ADBController, logger: BotLogger) -> None:
+    def __init__(
+        self,
+        adb: ADBController,
+        logger: BotLogger,
+        detector: VisualDetector | None = None,
+    ) -> None:
         """
         Initialise the engine.
 
         Args:
-            adb:    Configured ADBController instance used to send input events.
-            logger: BotLogger instance for all log output.
+            adb:      Configured ADBController instance used to send input events.
+            logger:   BotLogger instance for all log output.
+            detector: Optional VisualDetector for verify_image actions.
+                      A new instance is created if not provided.
         """
         self._adb: ADBController = adb
         self._logger: BotLogger = logger
+        self._detector: VisualDetector = detector if detector is not None else VisualDetector()
         self._actions: list[dict] = []
         self._stop_event: threading.Event = threading.Event()
 
@@ -140,13 +154,40 @@ class BotEngine:
                         self._adb.double_tap(x, y)
                     elif click_type == "long_press":
                         self._adb.long_press(x, y)
+                    elif click_type == "verify_image":
+                        template_path = action.get("template_path", "")
+                        threshold = float(action.get("threshold", 0.8))
+                        max_retries = int(action.get("max_retries", 5))
+                        retry_delay_ms = int(action.get("retry_delay_ms", 1000))
+
+                        found = False
+                        for attempt in range(max_retries + 1):
+                            if self._stop_event.is_set():
+                                break
+                            frame = self._detector.get_frame(self._adb)
+                            found = self._detector.find_template(
+                                frame, template_path, roi, threshold
+                            )
+                            if found:
+                                break
+                            if attempt < max_retries and retry_delay_ms > 0:
+                                time.sleep(retry_delay_ms / 1000)
+
+                        if not found:
+                            raise VerifyImageError(
+                                f"Template no encontrado tras {max_retries + 1} "
+                                f"intento(s): '{name}'"
+                            )
 
                     # Post-click delay.
                     if delay_after > 0:
                         time.sleep(delay_after / 1000)
 
-                    # Log the action at the custom ACTION level.
-                    self._logger.action(name, roi, x, y)
+                    # Log the action.
+                    if click_type != "verify_image":
+                        self._logger.action(name, roi, x, y)
+                    else:
+                        self._logger.info(f"verify_image OK: '{name}'")
 
                 except ADBConnectionError as exc:
                     # ADB connection loss is always fatal regardless of on_error.
