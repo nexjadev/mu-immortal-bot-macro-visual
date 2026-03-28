@@ -156,13 +156,7 @@ class ScriptManager:
         if isinstance(port, bool) or not isinstance(port, int) or not (1 <= port <= 65535):
             raise ScriptValidationError("emulator.port", "debe ser int entre 1 y 65535")
 
-        # 7. emulator.window_title — str
-        if not isinstance(emulator.get("window_title"), str):
-            raise ScriptValidationError(
-                "emulator.window_title", "campo requerido ausente"
-            )
-
-        # 8. cycle_delay — int >= 0
+        # 7. cycle_delay — int >= 0
         cycle_delay = script.get("cycle_delay")
         if isinstance(cycle_delay, bool) or not isinstance(cycle_delay, int) or cycle_delay < 0:
             raise ScriptValidationError("cycle_delay", "debe ser int >= 0")
@@ -279,7 +273,7 @@ class ScriptManager:
         in-place; otherwise the new profile is appended.
 
         Args:
-            profile: Dict with keys ``name``, ``host``, ``port``, ``window_title``.
+            profile: Dict with keys ``name``, ``host``, ``port``.
         """
         profiles = self.load_profiles()
 

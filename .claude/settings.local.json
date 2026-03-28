@@ -15,7 +15,9 @@
       "Bash(python -m pytest tests/test_bot_engine.py -v)",
       "Bash(python -m pytest tests/test_integration.py -v)",
       "Bash(echo \"exit: $?\")",
-      "Bash(python \"D:/mu-immortal-bot-macro-visual/tests/test_integration.py\")"
+      "Bash(python \"D:/mu-immortal-bot-macro-visual/tests/test_integration.py\")",
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(python:*)"
     ]
   }
 }

@@ -17,6 +17,7 @@ Architecture notes:
 
 import io
 import sys
+from pathlib import Path
 
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QPixmap
@@ -81,11 +82,18 @@ def main() -> None:
 
     def _do_save(path: str) -> None:
         """Sincroniza los valores actuales de la UI al script antes de guardar."""
+        # Garantiza que _script no sea None aunque no se haya cargado un JSON.
+        orchestrator.sync_actions(window._rois)
         orchestrator.sync_ui_data(
             emulator=window.get_emulator_config(),
             cycle_delay=window.get_cycle_delay(),
         )
-        orchestrator.save_script(path)
+        saved = orchestrator.save_script(path)
+        if saved:
+            window.set_current_path(path)
+            window.statusBar().showMessage(f"Guardado: {path}", 4000)
+        else:
+            window.statusBar().showMessage("Error al guardar — revisa el log.", 5000)
 
     window.on_save.connect(_do_save)
     window.on_actions_changed.connect(orchestrator.sync_actions)

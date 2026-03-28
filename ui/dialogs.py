@@ -3,18 +3,28 @@ ui/dialogs.py
 Reusable QDialog subclasses for the mu-immortal-bot-macro-visual project.
 """
 
+import uuid
+from pathlib import Path
+
 from PyQt6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
     QLineEdit,
     QComboBox,
     QSpinBox,
     QGroupBox,
+    QHBoxLayout,
     QVBoxLayout,
     QLabel,
+    QPushButton,
+    QMessageBox,
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
+
+_ROI_SAVE_DIR = Path("assets/rois")
 
 
 class ActionDialog(QDialog):
@@ -24,12 +34,21 @@ class ActionDialog(QDialog):
     Presents fields for action name, click type, delays, error handling,
     and the ROI pixel coordinates. If ``roi_preset`` is provided, the ROI
     fields are pre-filled with those values.
+
+    If ``screenshot`` is provided, a "Guardar ROI como PNG" button is shown
+    that crops and saves the selected region.
     """
 
-    def __init__(self, parent=None, roi_preset: dict | None = None) -> None:
+    def __init__(
+        self,
+        parent=None,
+        roi_preset: dict | None = None,
+        screenshot: QPixmap | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Configurar Acción")
         self._roi_preset = roi_preset
+        self._screenshot = screenshot
         self._setup_ui()
         self._prefill_roi(roi_preset)
 
@@ -91,6 +110,15 @@ class ActionDialog(QDialog):
 
         main_layout.addWidget(roi_group)
 
+        # --- Save PNG button (visible only when a screenshot is available) ---
+        save_row = QHBoxLayout()
+        self._btn_save_png = QPushButton("Guardar ROI como PNG…")
+        self._btn_save_png.setVisible(self._screenshot is not None)
+        self._btn_save_png.clicked.connect(self._save_roi_png)
+        save_row.addStretch()
+        save_row.addWidget(self._btn_save_png)
+        main_layout.addLayout(save_row)
+
         # --- Button box ---
         button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -100,6 +128,41 @@ class ActionDialog(QDialog):
         main_layout.addWidget(button_box)
 
         self.setLayout(main_layout)
+
+    # ------------------------------------------------------------------
+    # Save PNG
+    # ------------------------------------------------------------------
+
+    def _save_roi_png(self) -> None:
+        """Crop the current ROI from the screenshot and save as PNG."""
+        if self._screenshot is None:
+            return
+
+        x = self._roi_x.value()
+        y = self._roi_y.value()
+        w = self._roi_w.value()
+        h = self._roi_h.value()
+        cropped = self._screenshot.copy(x, y, w, h)
+
+        _ROI_SAVE_DIR.mkdir(parents=True, exist_ok=True)
+        default_name = str(_ROI_SAVE_DIR / f"roi_{uuid.uuid4().hex[:8]}.png")
+
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Guardar ROI como PNG",
+            default_name,
+            "Imágenes PNG (*.png)",
+        )
+        if not path:
+            return
+
+        if not path.lower().endswith(".png"):
+            path += ".png"
+
+        if cropped.save(path, "PNG"):
+            QMessageBox.information(self, "Guardado", f"ROI guardado en:\n{path}")
+        else:
+            QMessageBox.warning(self, "Error", "No se pudo guardar la imagen.")
 
     # ------------------------------------------------------------------
     # Pre-fill helpers

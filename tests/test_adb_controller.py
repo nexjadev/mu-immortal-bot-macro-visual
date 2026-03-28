@@ -8,11 +8,21 @@ so that no real ADB process is spawned during test execution.
 """
 
 import io
+import sys
 import subprocess
 import unittest
 from unittest.mock import MagicMock, call, patch
 
-from PIL import Image
+try:
+    from PIL import Image as _PILImage
+    _PIL_AVAILABLE = True
+except ImportError:
+    _PILImage = None
+    _PIL_AVAILABLE = False
+    # Mock PIL para que adb_controller pueda importarse sin Pillow instalado.
+    _pil = MagicMock()
+    sys.modules.setdefault("PIL", _pil)
+    sys.modules.setdefault("PIL.Image", _pil.Image)
 
 from core.adb_controller import ADBCommandError, ADBConnectionError, ADBController
 
@@ -154,17 +164,18 @@ class TestADBController(unittest.TestCase):
     # screenshot()
     # ------------------------------------------------------------------
 
+    @unittest.skipUnless(_PIL_AVAILABLE, "Pillow no instalado — omitiendo test de screenshot")
     def test_screenshot_returns_pil_image(self) -> None:
         """screenshot() should return a PIL.Image.Image built from ADB binary output."""
         buf = io.BytesIO()
-        Image.new("RGB", (10, 10), color=(255, 0, 0)).save(buf, format="PNG")
+        _PILImage.new("RGB", (10, 10), color=(255, 0, 0)).save(buf, format="PNG")
         png_bytes = buf.getvalue()
 
         with patch("core.adb_controller.subprocess.run") as mock_run:
             mock_run.return_value = _ok(stdout=png_bytes)
             result = self.adb.screenshot()
 
-        self.assertIsInstance(result, Image.Image)
+        self.assertIsInstance(result, _PILImage.Image)
 
 
 # ---------------------------------------------------------------------------

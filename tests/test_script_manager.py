@@ -39,7 +39,6 @@ class TestScriptManager(unittest.TestCase):
             "emulator": {
                 "host": "127.0.0.1",
                 "port": 5555,
-                "window_title": "MuMu",
             },
             "actions": [
                 {
@@ -111,14 +110,14 @@ class TestScriptManager(unittest.TestCase):
         """save_profile / load_profiles / delete_profile work end-to-end."""
         # Create
         self.sm.save_profile(
-            {"name": "emu1", "host": "127.0.0.1", "port": 5555, "window_title": "T"}
+            {"name": "emu1", "host": "127.0.0.1", "port": 5555}
         )
         profiles = self.sm.load_profiles()
         self.assertEqual(len(profiles), 1)
 
         # Update in-place (same name)
         self.sm.save_profile(
-            {"name": "emu1", "host": "10.0.0.1", "port": 5556, "window_title": "T2"}
+            {"name": "emu1", "host": "10.0.0.1", "port": 5556}
         )
         profiles = self.sm.load_profiles()
         self.assertEqual(len(profiles), 1)

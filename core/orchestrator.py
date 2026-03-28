@@ -77,7 +77,6 @@ class Orchestrator:
         self._script: Optional[dict] = None
         self._bot_thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
-        self._window_title: str = ""   # último window_title recibido de la UI
 
         # Public: wired by main.py after construction.
         self.on_state_change: Optional[Callable[[str], None]] = None
@@ -100,7 +99,7 @@ class Orchestrator:
     # Public API
     # ------------------------------------------------------------------
 
-    def connect(self, host: str, port: int, window_title: str) -> None:
+    def connect(self, host: str, port: int) -> None:
         """Connect to the ADB device at the given address.
 
         Sets ``ADBController.host`` and ``ADBController.port`` before
@@ -108,20 +107,16 @@ class Orchestrator:
         then either ``"connected"`` or ``"error"``.
 
         Args:
-            host:         IP address of the emulator / device.
-            port:         ADB daemon TCP port.
-            window_title: Window title hint (stored for future use; not
-                          forwarded to ADB at this stage).
+            host: IP address of the emulator / device.
+            port: ADB daemon TCP port.
         """
         self._adb.host = host
         self._adb.port = port
-        self._window_title = window_title
         # Mantener _script["emulator"] sincronizado si ya hay script en memoria
         if self._script is not None:
             self._script["emulator"] = {
                 "host": host,
                 "port": port,
-                "window_title": window_title,
             }
         self._notify("connecting")
         try:
@@ -161,7 +156,7 @@ class Orchestrator:
         Connect or Start first.
 
         Args:
-            emulator:    Dict with host, port, window_title from the panel.
+            emulator:    Dict with host, port from the panel.
             cycle_delay: Cycle delay in milliseconds from the panel.
         """
         if self._script is None:
@@ -171,24 +166,26 @@ class Orchestrator:
         # Keep ADBController in sync too
         self._adb.host = emulator.get("host", self._adb.host)
         self._adb.port = emulator.get("port", self._adb.port)
-        self._window_title = emulator.get("window_title", self._window_title)
 
-    def save_script(self, path: str) -> None:
+    def save_script(self, path: str) -> bool:
         """Persist the currently loaded script to disk.
 
-        A no-op when no script is loaded.  Errors are logged but do not
-        emit a state change (the save failing does not alter bot state).
+        Returns ``True`` on success, ``False`` otherwise.  Errors are logged
+        but do not emit a state change (the save failing does not alter bot state).
 
         Args:
             path: Destination filesystem path for the ``.json`` file.
         """
         if self._script is None:
-            return
+            self._logger.warn("save_script: no hay script en memoria, nada que guardar")
+            return False
         try:
             self._script_manager.save(self._script, path)
             self._logger.info(f"Script guardado: {path}")
+            return True
         except Exception as e:
             self._logger.error(f"Error al guardar script: {e}", exc=e)
+            return False
 
     def sync_actions(self, actions: list) -> None:
         """Sync the action list from the UI canvas into the engine.
@@ -216,7 +213,6 @@ class Orchestrator:
                 "emulator": {
                     "host": self._adb.host,
                     "port": self._adb.port,
-                    "window_title": self._window_title,
                 },
                 "actions": actions,
                 "cycle_delay": 500,

@@ -60,7 +60,7 @@ Fase 5: visual_detector.py v2 (backlog)
 
 "created_at": "", "version": "1.0" },
 
-"emulator": { "host": "127.0.0.1", "port": 5555, "window_title": "" },
+"emulator": { "host": "127.0.0.1", "port": 5555 },
 
 "actions": [
 
@@ -77,6 +77,34 @@ Fase 5: visual_detector.py v2 (backlog)
 "cycle_delay": 500
 
 }
+
+## Reglas de pruebas (OBLIGATORIO)
+
+8. Toda funcionalidad de `core/` debe tener pruebas funcionales en `tests/`.
+   No basta con pruebas unitarias con mocks: debe existir al menos un test
+   que verifique el comportamiento real de extremo a extremo (I/O incluido).
+
+9. Cobertura mínima por área:
+   - **Guardado/carga de scripts**: crear archivo, verificar contenido, sobrescribir.
+   - **Flujos del Orchestrator**: cada método público con resultado observable.
+   - **Validación de datos**: campos requeridos, tipos incorrectos, valores límite.
+   - **Manejo de errores**: cada `return False` / excepción debe tener un test
+     que confirme que el fallo es visible (no silencioso).
+
+10. Antes de declarar un bug como resuelto, agregar un test que lo reproduzca
+    y verifique el fix. Si el test no existía antes, el bug era prevenible.
+
+11. Ejecutar la suite completa con:
+    ```
+    python -m unittest discover -s tests -v
+    ```
+    Debe terminar con `OK` (o `OK (skipped=N)` solo para tests que requieren
+    hardware externo como Pillow/ADB). Ningún ERROR ni FAIL es aceptable.
+
+12. Para dependencias de runtime opcionales (PIL, ADB), mockear con
+    `sys.modules` al inicio del archivo de test, antes de cualquier import
+    de `core/`. Los tests que requieran la dependencia real deben usar
+    `@unittest.skipUnless` con mensaje explicativo.
 
 ## Formato de log
 

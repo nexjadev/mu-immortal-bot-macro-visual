@@ -6,8 +6,16 @@ Unit tests for core/bot_engine.py.
 All ADB and logger calls are mocked so no real device is needed.
 """
 
+import sys
 import unittest
 from unittest.mock import MagicMock
+
+# PIL es una dependencia de runtime; si no está instalada se mockea aquí
+# para que los tests puedan correr sin Pillow.
+if "PIL" not in sys.modules:
+    _pil = MagicMock()
+    sys.modules["PIL"] = _pil
+    sys.modules["PIL.Image"] = _pil.Image
 
 from core.adb_controller import ADBConnectionError
 from core.bot_engine import BotEngine

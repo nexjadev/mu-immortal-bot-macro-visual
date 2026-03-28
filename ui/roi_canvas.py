@@ -181,7 +181,7 @@ class ROICanvas(QLabel):
             # Ignore accidental clicks (drag too small).
             if rect.width() >= _MIN_DRAG_PX and rect.height() >= _MIN_DRAG_PX:
                 roi_dict = self._image_rect(rect)
-                dlg = ActionDialog(self, roi_preset=roi_dict)
+                dlg = ActionDialog(self, roi_preset=roi_dict, screenshot=self.pixmap())
                 if dlg.exec() == _DIALOG_ACCEPTED:
                     data = dlg.get_data()
                     data["id"] = uuid.uuid4().hex[:8]
@@ -244,7 +244,7 @@ class ROICanvas(QLabel):
 
     def _edit_roi(self, roi: dict) -> None:
         """Open ActionDialog pre-filled with *roi*'s current values."""
-        dlg = ActionDialog(self, roi_preset=roi.get("roi"))
+        dlg = ActionDialog(self, roi_preset=roi.get("roi"), screenshot=self.pixmap())
 
         # Pre-fill action fields from the existing action dict.
         dlg._name.setText(roi.get("name", ""))

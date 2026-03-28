@@ -33,7 +33,7 @@ _DEFAULT_CYCLE_DELAY_MS: int = 500
 class ActionPanel(QWidget):
     """
     Right-side panel that exposes controls for:
-    - Emulator connection (host, port, window title)
+    - Emulator connection (host, port)
     - Action list management (enable/disable via checkboxes, drag-to-reorder)
     - Execution control (start / stop, cycle count, cycle delay)
 
@@ -42,9 +42,9 @@ class ActionPanel(QWidget):
 
     Signals
     -------
-    connect_requested(str, int, str)
+    connect_requested(str, int)
         Emitted when the user clicks "Conectar".
-        Arguments: (host, port, window_title).
+        Arguments: (host, port).
     action_toggled(str, bool)
         Emitted when the user changes the checked state of an action item.
         Arguments: (action_id, enabled).
@@ -58,7 +58,7 @@ class ActionPanel(QWidget):
         Emitted when the user clicks "Detener".
     """
 
-    connect_requested = pyqtSignal(str, int, str)
+    connect_requested = pyqtSignal(str, int)
     refresh_requested = pyqtSignal()
     action_toggled = pyqtSignal(str, bool)
     action_reordered = pyqtSignal(list)
@@ -104,10 +104,6 @@ class ActionPanel(QWidget):
         self._port.setRange(1, 65535)
         self._port.setValue(_DEFAULT_PORT)
         form.addRow("Puerto:", self._port)
-
-        self._title = QLineEdit()
-        self._title.setPlaceholderText("Título ventana")
-        form.addRow("Ventana:", self._title)
 
         btn_row = QHBoxLayout()
         self._btn_connect = QPushButton("Conectar")
@@ -189,8 +185,7 @@ class ActionPanel(QWidget):
         """Gather connection fields and emit connect_requested."""
         host = self._host.text().strip() or _DEFAULT_HOST
         port = self._port.value()
-        title = self._title.text().strip()
-        self.connect_requested.emit(host, port, title)
+        self.connect_requested.emit(host, port)
 
     def _emit_start(self) -> None:
         """Read run parameters and emit start_requested."""
@@ -219,7 +214,6 @@ class ActionPanel(QWidget):
         return {
             "host": self._host.text().strip() or _DEFAULT_HOST,
             "port": self._port.value(),
-            "window_title": self._title.text().strip(),
         }
 
     def get_cycle_delay(self) -> int:
@@ -232,11 +226,10 @@ class ActionPanel(QWidget):
         Parameters
         ----------
         emulator:
-            Dict with keys ``host``, ``port``, ``window_title``.
+            Dict with keys ``host``, ``port``.
         """
         self._host.setText(emulator.get("host", ""))
         self._port.setValue(emulator.get("port", _DEFAULT_PORT))
-        self._title.setText(emulator.get("window_title", ""))
 
     def set_actions(self, actions: list[dict]) -> None:
         """

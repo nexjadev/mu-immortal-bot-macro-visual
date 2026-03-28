@@ -8,10 +8,16 @@ creation) is replaced with MagicMock instances so the tests run in any
 environment without a connected device or real script files.
 """
 
+import sys
 import threading
 import time
 import unittest
 from unittest.mock import MagicMock
+
+if "PIL" not in sys.modules:
+    _pil = MagicMock()
+    sys.modules["PIL"] = _pil
+    sys.modules["PIL.Image"] = _pil.Image
 
 from core.adb_controller import ADBConnectionError
 from core.orchestrator import Orchestrator, ResolutionMismatchError
@@ -54,7 +60,6 @@ class TestOrchestratorIntegration(unittest.TestCase):
             "emulator": {
                 "host": "127.0.0.1",
                 "port": 5555,
-                "window_title": "",
             },
             "actions": [
                 {
@@ -78,14 +83,14 @@ class TestOrchestratorIntegration(unittest.TestCase):
     def test_connect_success_state(self) -> None:
         """Successful connect emits 'connecting' then 'connected'."""
         self.orc._adb.connect = MagicMock()
-        self.orc.connect("127.0.0.1", 5555, "")
+        self.orc.connect("127.0.0.1", 5555)
         self.assertIn("connecting", self.states)
         self.assertIn("connected", self.states)
 
     def test_connect_failure_state(self) -> None:
         """ADBConnectionError causes the 'error' state to be emitted."""
         self.orc._adb.connect.side_effect = ADBConnectionError("offline")
-        self.orc.connect("127.0.0.1", 5555, "")
+        self.orc.connect("127.0.0.1", 5555)
         self.assertIn("error", self.states)
 
     def test_load_script_valid(self) -> None:

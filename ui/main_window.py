@@ -20,6 +20,9 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QStatusBar,
 )
+from datetime import datetime
+from pathlib import Path
+
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QAction, QPixmap, QKeySequence, QShortcut
 
@@ -54,9 +57,9 @@ class MainWindow(QMainWindow):
 
     Signals
     -------
-    on_connect(str, int, str)
+    on_connect(str, int)
         Forwarded from ActionPanel.connect_requested.
-        Arguments: (host, port, window_title).
+        Arguments: (host, port).
     on_start(int, int)
         Forwarded from ActionPanel.start_requested.
         Arguments: (cycles, cycle_delay_ms).
@@ -68,7 +71,7 @@ class MainWindow(QMainWindow):
         Emitted with the file path chosen in the Open dialog.
     """
 
-    on_connect = pyqtSignal(str, int, str)
+    on_connect = pyqtSignal(str, int)
     on_start = pyqtSignal(int, int)
     on_stop = pyqtSignal()
     on_save = pyqtSignal(str)
@@ -83,6 +86,7 @@ class MainWindow(QMainWindow):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._rois: list[dict] = []
+        self._current_path: str | None = None   # último archivo abierto / guardado
         self._setup_ui()
         self._connect_signals()
 
@@ -102,12 +106,23 @@ class MainWindow(QMainWindow):
         self.addToolBar(toolbar)
 
         self._act_new = QAction("Nuevo", self)
+
         self._act_open = QAction("Abrir", self)
+        self._act_open.setShortcut(QKeySequence("Ctrl+O"))
+        self._act_open.setToolTip("Abrir script  (Ctrl+O)")
+
         self._act_save = QAction("Guardar", self)
+        self._act_save.setShortcut(QKeySequence("Ctrl+S"))
+        self._act_save.setToolTip("Guardar script  (Ctrl+S)")
+
+        self._act_quick_save = QAction("Guardar rápido", self)
+        self._act_quick_save.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        self._act_quick_save.setToolTip("Guardar sin diálogo  (Ctrl+Shift+S)")
 
         toolbar.addAction(self._act_new)
         toolbar.addAction(self._act_open)
         toolbar.addAction(self._act_save)
+        toolbar.addAction(self._act_quick_save)
 
         toolbar.addSeparator()
         toolbar.addWidget(QLabel(" Estado: "))
@@ -170,6 +185,7 @@ class MainWindow(QMainWindow):
         self._act_new.triggered.connect(self._action_new)
         self._act_open.triggered.connect(self._action_open)
         self._act_save.triggered.connect(self._action_save)
+        self._act_quick_save.triggered.connect(self._action_quick_save)
 
         # Canvas ROI signals → internal state update + panel sync
         self._canvas.roi_created.connect(self._on_roi_created)
@@ -183,6 +199,10 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Public API (called by the Orchestrator)
     # ------------------------------------------------------------------
+
+    def set_current_path(self, path: str) -> None:
+        """Inform the window of the active script path (called by the Orchestrator)."""
+        self._current_path = path
 
     def get_emulator_config(self) -> dict:
         """Return the current emulator field values from the panel."""
@@ -249,19 +269,39 @@ class MainWindow(QMainWindow):
 
     def _action_open(self) -> None:
         """Open a file dialog and emit on_load with the chosen path."""
+        scripts_dir = str(Path(__file__).parent.parent / "scripts")
         path, _ = QFileDialog.getOpenFileName(
-            self, "Abrir script", "scripts/", "JSON (*.json)"
+            self, "Abrir script", scripts_dir, "JSON (*.json)"
         )
         if path:
+            self._current_path = path
             self.on_load.emit(path)
 
     def _action_save(self) -> None:
-        """Open a save dialog and emit on_save with the chosen path."""
+        """Open a save dialog pre-filled with a sensible default name."""
+        default = self._current_path or self._default_save_path()
         path, _ = QFileDialog.getSaveFileName(
-            self, "Guardar script", "scripts/", "JSON (*.json)"
+            self, "Guardar script", default, "JSON (*.json)"
         )
         if path:
+            if not path.lower().endswith(".json"):
+                path += ".json"
+            self._current_path = path
             self.on_save.emit(path)
+
+    def _action_quick_save(self) -> None:
+        """Save directly to the current path (or a generated one) without a dialog."""
+        path = self._current_path or self._default_save_path()
+        if not path.lower().endswith(".json"):
+            path += ".json"
+        self.on_save.emit(path)
+
+    def _default_save_path(self) -> str:
+        """Return an absolute timestamped path inside the project's scripts/ folder."""
+        name = datetime.now().strftime("script_%Y%m%d_%H%M%S")
+        scripts_dir = Path(__file__).parent.parent / "scripts"
+        scripts_dir.mkdir(exist_ok=True)
+        return str(scripts_dir / f"{name}.json")
 
     # ------------------------------------------------------------------
     # Canvas signal handlers
