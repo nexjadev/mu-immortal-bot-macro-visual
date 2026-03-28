@@ -71,6 +71,35 @@ class TestScriptManager(unittest.TestCase):
         """validate() does not raise for a fully valid script."""
         self.sm.validate(self._make_script())
 
+    def test_validate_empty_actions_allowed(self) -> None:
+        """validate() acepta actions vacío (script guardado antes de dibujar ROIs)."""
+        script = self._make_script()
+        script["actions"] = []
+        self.sm.validate(script)  # no debe lanzar
+
+    def test_validate_actions_not_list_raises(self) -> None:
+        """validate() rechaza actions que no sea lista."""
+        script = self._make_script()
+        script["actions"] = "no_es_lista"
+        with self.assertRaises(ScriptValidationError) as ctx:
+            self.sm.validate(script)
+        self.assertEqual(ctx.exception.field, "actions")
+
+    def test_validate_resolution_zero_zero(self) -> None:
+        """validate() acepta resolution 0x0 (scripts creados desde la UI sin referencia)."""
+        script = self._make_script()
+        script["meta"]["resolution"] = {"width": 0, "height": 0}
+        # No debe lanzar excepción
+        self.sm.validate(script)
+
+    def test_validate_resolution_negative_raises(self) -> None:
+        """validate() rechaza resoluciones negativas."""
+        script = self._make_script()
+        script["meta"]["resolution"]["width"] = -1
+        with self.assertRaises(ScriptValidationError) as ctx:
+            self.sm.validate(script)
+        self.assertEqual(ctx.exception.field, "meta.resolution.width")
+
     def test_validate_missing_field(self) -> None:
         """validate() raises ScriptValidationError when a top-level key is absent."""
         script = self._make_script()

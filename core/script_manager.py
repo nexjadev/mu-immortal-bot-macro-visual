@@ -138,9 +138,10 @@ class ScriptManager:
             raise ScriptValidationError("meta.resolution", "campo requerido ausente")
         for dim in ("width", "height"):
             val = resolution.get(dim)
-            if not isinstance(val, int) or isinstance(val, bool) or val <= 0:
+            # 0×0 es válido: indica script creado desde la UI sin resolución de referencia.
+            if not isinstance(val, int) or isinstance(val, bool) or val < 0:
                 raise ScriptValidationError(
-                    f"meta.resolution.{dim}", "debe ser int > 0"
+                    f"meta.resolution.{dim}", "debe ser int >= 0"
                 )
 
         # 4. meta.version — str
@@ -161,10 +162,10 @@ class ScriptManager:
         if isinstance(cycle_delay, bool) or not isinstance(cycle_delay, int) or cycle_delay < 0:
             raise ScriptValidationError("cycle_delay", "debe ser int >= 0")
 
-        # 9. actions — lista no vacia
+        # 9. actions — debe ser lista (puede estar vacía si aún no hay ROIs)
         actions = script["actions"]
-        if not isinstance(actions, list) or len(actions) == 0:
-            raise ScriptValidationError("actions", "debe ser una lista no vacia")
+        if not isinstance(actions, list):
+            raise ScriptValidationError("actions", "debe ser una lista")
 
         # 10. Validacion por accion
         for i, action in enumerate(actions):

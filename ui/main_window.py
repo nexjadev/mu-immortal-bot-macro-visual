@@ -181,6 +181,10 @@ class MainWindow(QMainWindow):
         _emergency_stop = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
         _emergency_stop.activated.connect(self.on_stop)
 
+        # Ctrl+Enter → conectar con los datos actuales del panel
+        _connect_shortcut = QShortcut(QKeySequence("Ctrl+Return"), self)
+        _connect_shortcut.activated.connect(self._panel._emit_connect)
+
         # Toolbar actions
         self._act_new.triggered.connect(self._action_new)
         self._act_open.triggered.connect(self._action_open)
