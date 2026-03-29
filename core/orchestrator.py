@@ -83,10 +83,22 @@ class Orchestrator:
         # Public: wired by main.py after construction.
         self.on_state_change: Optional[Callable[[str], None]] = None
         self.on_script_loaded: Optional[Callable[[dict], None]] = None
+        # Called with the active action id (str) or None when idle.
+        self.on_active_action: Optional[Callable[[Optional[str]], None]] = None
 
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    def _notify_active_action(self, action_id: Optional[str]) -> None:
+        """Forward the currently executing action id (or None) to the UI.
+
+        Args:
+            action_id: Id of the action starting execution, or ``None`` to
+                       signal that no action is currently active.
+        """
+        if self.on_active_action is not None:
+            self.on_active_action(action_id)
 
     def _notify(self, state: str) -> None:
         """Invoke on_state_change if a handler has been registered.
@@ -150,7 +162,7 @@ class Orchestrator:
             self._logger.error(f"Error al cargar script: {e}")
             self._notify("error")
 
-    def sync_ui_data(self, emulator: dict, cycle_delay: int) -> None:
+    def sync_ui_data(self, emulator: dict, cycle_delay: int, cycles: int = 0) -> None:
         """Apply current UI field values to the in-memory script.
 
         Called by main.py just before saving so the JSON always reflects
@@ -160,11 +172,13 @@ class Orchestrator:
         Args:
             emulator:    Dict with host, port from the panel.
             cycle_delay: Cycle delay in milliseconds from the panel.
+            cycles:      Number of cycles to run (0 = infinite).
         """
         if self._script is None:
             return
         self._script["emulator"] = emulator
         self._script["cycle_delay"] = cycle_delay
+        self._script["cycles"] = cycles
         # Keep ADBController in sync too
         self._adb.host = emulator.get("host", self._adb.host)
         self._adb.port = emulator.get("port", self._adb.port)
@@ -218,6 +232,7 @@ class Orchestrator:
                 },
                 "actions": actions,
                 "cycle_delay": 500,
+                "cycles": 0,
             }
         else:
             self._script["actions"] = actions
@@ -284,6 +299,7 @@ class Orchestrator:
         # Configure engine callbacks.
         def _on_engine_error(exc: Exception) -> None:
             self._logger.error("Error en el bot", exc=exc)
+            self._notify_active_action(None)
             self._notify("error")
 
         def _on_cycle_complete(cycle: int) -> None:
@@ -291,6 +307,7 @@ class Orchestrator:
 
         self._engine.on_error = _on_engine_error
         self._engine.on_cycle_complete = _on_cycle_complete
+        self._engine.on_action_start = self._notify_active_action
 
         # Open a new log session.
         self._logger.start_session(
@@ -325,6 +342,7 @@ class Orchestrator:
         if thread is not None and thread.is_alive():
             thread.join(timeout=3.0)
 
+        self._notify_active_action(None)
         self._logger.end_session(0, "stopped")
         self._notify("stopped")
 
@@ -342,3 +360,9 @@ class Orchestrator:
         except Exception as e:
             self._logger.warn(f"No se pudo capturar pantalla: {e}")
             return None
+
+    def disconnect(self) -> None:
+        """Disconnect from the ADB device and stop the bot engine if running."""
+        self.stop_bot()
+        self._adb.disconnect()
+        self._notify("disconnected")

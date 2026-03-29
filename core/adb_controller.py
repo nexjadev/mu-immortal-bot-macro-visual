@@ -125,9 +125,15 @@ class ADBController:
 
         out = result.stdout.decode(errors="replace").strip().lower()
 
-        if "unable to connect" in out or "error" in out or result.returncode != 0:
+        if "unable to connect" in out or "failed" in out or result.returncode != 0:
             raise ADBConnectionError(
                 f"Cannot connect to {self.host}:{self.port} — {out}"
+            )
+
+        # Verify the device is actually an ADB daemon (not just an open TCP port).
+        if not self.is_connected():
+            raise ADBConnectionError(
+                f"Port {self.host}:{self.port} responded but is not an ADB device"
             )
 
         self._connected = True

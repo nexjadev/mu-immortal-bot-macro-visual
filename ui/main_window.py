@@ -77,6 +77,7 @@ class MainWindow(QMainWindow):
     on_save = pyqtSignal(str)
     on_load = pyqtSignal(str)
     on_refresh = pyqtSignal()
+    on_disconnect = pyqtSignal()
     on_actions_changed = pyqtSignal(list)   # emitida cuando la lista de acciones cambia
 
     # ------------------------------------------------------------------
@@ -119,10 +120,15 @@ class MainWindow(QMainWindow):
         self._act_quick_save.setShortcut(QKeySequence("Ctrl+Shift+S"))
         self._act_quick_save.setToolTip("Guardar sin diálogo  (Ctrl+Shift+S)")
 
+        self._act_exit = QAction("Salir", self)
+        self._act_exit.setToolTip("Cerrar la aplicación")
+
         toolbar.addAction(self._act_new)
         toolbar.addAction(self._act_open)
         toolbar.addAction(self._act_save)
         toolbar.addAction(self._act_quick_save)
+        toolbar.addSeparator()
+        toolbar.addAction(self._act_exit)
 
         toolbar.addSeparator()
         toolbar.addWidget(QLabel(" Estado: "))
@@ -185,11 +191,16 @@ class MainWindow(QMainWindow):
         _connect_shortcut = QShortcut(QKeySequence("Ctrl+Return"), self)
         _connect_shortcut.activated.connect(self._panel._emit_connect)
 
+        # F5 → refrescar captura (solo si el botón está habilitado)
+        _refresh_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F5), self)
+        _refresh_shortcut.activated.connect(self._panel._btn_refresh.click)
+
         # Toolbar actions
         self._act_new.triggered.connect(self._action_new)
         self._act_open.triggered.connect(self._action_open)
         self._act_save.triggered.connect(self._action_save)
         self._act_quick_save.triggered.connect(self._action_quick_save)
+        self._act_exit.triggered.connect(self.close)
 
         # Canvas ROI signals → internal state update + panel sync
         self._canvas.roi_created.connect(self._on_roi_created)
@@ -211,6 +222,10 @@ class MainWindow(QMainWindow):
     def get_emulator_config(self) -> dict:
         """Return the current emulator field values from the panel."""
         return self._panel.get_emulator()
+
+    def get_cycles(self) -> int:
+        """Return the current number-of-cycles value from the panel."""
+        return self._panel.get_cycles()
 
     def get_cycle_delay(self) -> int:
         """Return the current cycle delay value from the panel."""
@@ -255,6 +270,16 @@ class MainWindow(QMainWindow):
         self._status_label.setText(text)
         self._status_label.setStyleSheet(f"color: {color}; font-weight: bold;")
         self._panel.set_state(state)
+
+    def set_active_action(self, action_id: str) -> None:
+        """Highlight the currently executing action in the sidebar.
+
+        Parameters
+        ----------
+        action_id:
+            Id of the action being executed, or ``""`` to clear the indicator.
+        """
+        self._panel.set_active_action(action_id or None)
 
     # ------------------------------------------------------------------
     # Toolbar action slots
@@ -362,9 +387,7 @@ class MainWindow(QMainWindow):
         """
         Intercept the close event to allow graceful shutdown.
 
-        The Orchestrator should connect to ``on_stop`` to halt any running
-        macro before the window disappears.  Here we simply emit on_stop
-        (a no-op if nothing is running) and then accept the event.
+         Halt any running macro and disconnect from ADB before leaving.
         """
-        self.on_stop.emit()
+        self.on_disconnect.emit()
         event.accept()

@@ -59,6 +59,31 @@ class _StateBridge(QObject):
         self.state_changed.emit(state)
 
 
+class _ActionBridge(QObject):
+    """Marshals the active-action id from the engine thread to the GUI thread.
+
+    Uses an empty string as the sentinel for "no active action" (pyqtSignal
+    does not support None for str typed signals).
+
+    Args:
+        window: The MainWindow whose ``set_active_action`` method will be called.
+    """
+
+    action_changed = pyqtSignal(str)
+
+    def __init__(self, window: MainWindow) -> None:
+        super().__init__()
+        self.action_changed.connect(window.set_active_action)
+
+    def notify(self, action_id) -> None:
+        """Emit action_changed (safe from any thread).
+
+        Args:
+            action_id: Action id string, or ``None`` to clear the indicator.
+        """
+        self.action_changed.emit(action_id or "")
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -70,15 +95,18 @@ def main() -> None:
     window = MainWindow()
     orchestrator = Orchestrator()
     bridge = _StateBridge(window)
+    action_bridge = _ActionBridge(window)
 
     # Route Orchestrator state changes to the UI thread-safely.
     orchestrator.on_state_change = bridge.notify
+    orchestrator.on_active_action = action_bridge.notify
 
     # Wire UI signals to Orchestrator methods.
     window.on_connect.connect(orchestrator.connect)
     window.on_start.connect(orchestrator.start_bot)
     window.on_stop.connect(orchestrator.stop_bot)
     window.on_load.connect(orchestrator.load_script)
+    window.on_disconnect.connect(orchestrator.disconnect)
 
     def _do_save(path: str) -> None:
         """Sincroniza los valores actuales de la UI al script antes de guardar."""
@@ -87,6 +115,7 @@ def main() -> None:
         orchestrator.sync_ui_data(
             emulator=window.get_emulator_config(),
             cycle_delay=window.get_cycle_delay(),
+            cycles=window.get_cycles(),
         )
         saved = orchestrator.save_script(path)
         if saved:
@@ -102,6 +131,8 @@ def main() -> None:
         """Actualiza la UI completa tras cargar un script JSON."""
         window.set_rois(script.get("actions", []))
         window._panel.set_emulator(script.get("emulator", {}))
+        window._panel.set_cycle_delay(script.get("cycle_delay", 500))
+        window._panel.set_cycles(script.get("cycles", 0))
 
     orchestrator.on_script_loaded = _on_script_loaded
 

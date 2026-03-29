@@ -66,7 +66,12 @@ class TestADBController(unittest.TestCase):
     def test_connect_success(self) -> None:
         """connect() should set _connected=True when ADB reports success."""
         with patch("core.adb_controller.subprocess.run") as mock_run:
-            mock_run.return_value = _ok(stdout=b"connected to 127.0.0.1:5555")
+            # First call: adb connect → "connected to ..."
+            # Second call: adb get-state (inside is_connected()) → "device"
+            mock_run.side_effect = [
+                _ok(stdout=b"connected to 127.0.0.1:5555"),
+                _ok(stdout=b"device"),
+            ]
             self.adb.connect()
         self.assertTrue(self.adb._connected)
 

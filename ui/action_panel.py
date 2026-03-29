@@ -18,8 +18,11 @@ from PyQt6.QtWidgets import (
     QListWidgetItem,
     QAbstractItemView,
     QSizePolicy,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QModelIndex
+from PyQt6.QtGui import QPainter, QColor
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -28,6 +31,50 @@ from PyQt6.QtCore import Qt, pyqtSignal
 _DEFAULT_HOST: str = "127.0.0.1"
 _DEFAULT_PORT: int = 5555
 _DEFAULT_CYCLE_DELAY_MS: int = 500
+
+# Custom data role that marks an item as the currently executing action.
+_ACTIVE_ROLE = Qt.ItemDataRole.UserRole + 1
+
+_DOT_RADIUS = 5
+_DOT_MARGIN = 14   # distance from the right edge to the dot centre
+
+
+# ---------------------------------------------------------------------------
+# Item delegate — draws the green/grey activity dot
+# ---------------------------------------------------------------------------
+
+class _DotDelegate(QStyledItemDelegate):
+    """Draws a small coloured circle at the centre-right of each list item.
+
+    The dot is green when the item's ``_ACTIVE_ROLE`` data is ``True``,
+    and grey otherwise.
+    """
+
+    _COLOR_ACTIVE = QColor("#27ae60")   # green
+    _COLOR_IDLE   = QColor("#888888")   # grey
+
+    def paint(
+        self,
+        painter: QPainter,
+        option: QStyleOptionViewItem,
+        index: QModelIndex,
+    ) -> None:
+        super().paint(painter, option, index)
+        active: bool = bool(index.data(_ACTIVE_ROLE))
+        color = self._COLOR_ACTIVE if active else self._COLOR_IDLE
+        cx = option.rect.right() - _DOT_MARGIN
+        cy = option.rect.center().y()
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(color)
+        painter.drawEllipse(
+            cx - _DOT_RADIUS,
+            cy - _DOT_RADIUS,
+            _DOT_RADIUS * 2,
+            _DOT_RADIUS * 2,
+        )
+        painter.restore()
 
 
 class ActionPanel(QWidget):
@@ -107,7 +154,8 @@ class ActionPanel(QWidget):
 
         btn_row = QHBoxLayout()
         self._btn_connect = QPushButton("Conectar")
-        self._btn_refresh = QPushButton("Refrescar captura")
+        self._btn_refresh = QPushButton("Refrescar captura  [F5]")
+        self._btn_refresh.setEnabled(False)
         btn_row.addWidget(self._btn_connect)
         btn_row.addWidget(self._btn_refresh)
         form.addRow(btn_row)
@@ -125,14 +173,8 @@ class ActionPanel(QWidget):
         self._list.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
+        self._list.setItemDelegate(_DotDelegate(self._list))
         vbox.addWidget(self._list)
-
-        btn_row = QHBoxLayout()
-        self._btn_edit = QPushButton("Editar")
-        self._btn_delete = QPushButton("Borrar")
-        btn_row.addWidget(self._btn_edit)
-        btn_row.addWidget(self._btn_delete)
-        vbox.addLayout(btn_row)
 
         return group
 
@@ -216,9 +258,21 @@ class ActionPanel(QWidget):
             "port": self._port.value(),
         }
 
+    def get_cycles(self) -> int:
+        """Return the current number-of-cycles value (0 = infinite)."""
+        return self._cycles.value()
+
     def get_cycle_delay(self) -> int:
         """Return the current cycle delay value in milliseconds."""
         return self._cycle_delay.value()
+
+    def set_cycles(self, value: int) -> None:
+        """Set the number-of-cycles spinbox from a loaded script."""
+        self._cycles.setValue(value)
+
+    def set_cycle_delay(self, value: int) -> None:
+        """Set the cycle-delay spinbox from a loaded script."""
+        self._cycle_delay.setValue(value)
 
     def set_emulator(self, emulator: dict) -> None:
         """Populate the emulator input fields from a loaded script.
@@ -265,6 +319,26 @@ class ActionPanel(QWidget):
 
         self._list.blockSignals(False)
 
+    def set_active_action(self, action_id: str | None) -> None:
+        """Update the activity dot for all items.
+
+        Sets the dot to green for the item whose id matches *action_id*,
+        and to grey for all others.
+
+        Parameters
+        ----------
+        action_id:
+            Id of the currently executing action, or ``None`` to clear all.
+        """
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            is_active = (
+                action_id is not None
+                and item.data(Qt.ItemDataRole.UserRole) == action_id
+            )
+            item.setData(_ACTIVE_ROLE, is_active)
+        self._list.viewport().update()
+
     def set_state(self, state: str) -> None:
         """
         Update button enabled states to reflect the application state.
@@ -277,14 +351,17 @@ class ActionPanel(QWidget):
         """
         if state in ("connected", "stopped"):
             self._btn_connect.setEnabled(False)
+            self._btn_refresh.setEnabled(True)
             self._btn_start.setEnabled(True)
             self._btn_stop.setEnabled(False)
         elif state == "running":
             self._btn_connect.setEnabled(False)
+            self._btn_refresh.setEnabled(True)
             self._btn_start.setEnabled(False)
             self._btn_stop.setEnabled(True)
         else:
             # 'disconnected' or 'error'
             self._btn_connect.setEnabled(True)
+            self._btn_refresh.setEnabled(False)
             self._btn_start.setEnabled(False)
             self._btn_stop.setEnabled(False)

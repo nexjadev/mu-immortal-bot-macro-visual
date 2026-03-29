@@ -177,6 +177,35 @@ class TestSaveWorkflow(unittest.TestCase):
         content = json.loads(Path(self.save_path).read_text(encoding="utf-8"))
         self.assertEqual(content["actions"][0]["name"], "V2")
 
+    # ------------------------------------------------------------------
+    # 8. cycles se guarda y se preserva en el JSON
+    # ------------------------------------------------------------------
+
+    def test_cycles_saved_to_json(self) -> None:
+        """sync_ui_data con cycles=5 debe persistir cycles=5 en el JSON guardado."""
+        self.orc.sync_actions([_make_roi()])
+        self.orc.sync_ui_data(
+            emulator={"host": "127.0.0.1", "port": 5555},
+            cycle_delay=500,
+            cycles=5,
+        )
+        self.orc.save_script(self.save_path)
+
+        content = json.loads(Path(self.save_path).read_text(encoding="utf-8"))
+        self.assertEqual(content["cycles"], 5)
+
+    def test_cycles_default_zero_when_not_passed(self) -> None:
+        """sync_ui_data sin cycles debe guardar cycles=0 (por defecto)."""
+        self.orc.sync_actions([_make_roi()])
+        self.orc.sync_ui_data(
+            emulator={"host": "127.0.0.1", "port": 5555},
+            cycle_delay=200,
+        )
+        self.orc.save_script(self.save_path)
+
+        content = json.loads(Path(self.save_path).read_text(encoding="utf-8"))
+        self.assertEqual(content["cycles"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

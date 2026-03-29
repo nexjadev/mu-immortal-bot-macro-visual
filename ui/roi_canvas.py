@@ -181,7 +181,12 @@ class ROICanvas(QLabel):
             # Ignore accidental clicks (drag too small).
             if rect.width() >= _MIN_DRAG_PX and rect.height() >= _MIN_DRAG_PX:
                 roi_dict = self._image_rect(rect)
-                dlg = ActionDialog(self, roi_preset=roi_dict, screenshot=self.pixmap())
+                dlg = ActionDialog(
+                    self,
+                    roi_preset=roi_dict,
+                    screenshot=self.pixmap(),
+                    actions_list=self._rois,
+                )
                 if dlg.exec() == _DIALOG_ACCEPTED:
                     data = dlg.get_data()
                     data["id"] = uuid.uuid4().hex[:8]
@@ -244,27 +249,13 @@ class ROICanvas(QLabel):
 
     def _edit_roi(self, roi: dict) -> None:
         """Open ActionDialog pre-filled with *roi*'s current values."""
-        dlg = ActionDialog(self, roi_preset=roi.get("roi"), screenshot=self.pixmap())
-
-        # Pre-fill action fields from the existing action dict.
-        dlg._name.setText(roi.get("name", ""))
-
-        idx = dlg._click_type.findText(roi.get("click_type", "single"))
-        if idx >= 0:
-            dlg._click_type.setCurrentIndex(idx)
-
-        dlg._delay_before.setValue(roi.get("delay_before", 0))
-        dlg._delay_after.setValue(roi.get("delay_after", 0))
-
-        idx2 = dlg._on_error.findText(roi.get("on_error", "stop"))
-        if idx2 >= 0:
-            dlg._on_error.setCurrentIndex(idx2)
-
-        if roi.get("click_type") == "verify_image":
-            dlg._template_path_edit.setText(roi.get("template_path", ""))
-            dlg._threshold.setValue(roi.get("threshold", 0.8))
-            dlg._max_retries.setValue(roi.get("max_retries", 5))
-            dlg._retry_delay_ms.setValue(roi.get("retry_delay_ms", 1000))
+        dlg = ActionDialog(
+            self,
+            roi_preset=roi.get("roi"),
+            screenshot=self.pixmap(),
+            actions_list=self._rois,
+        )
+        dlg.prefill_action(roi)
 
         if dlg.exec() == _DIALOG_ACCEPTED:
             self.roi_edited.emit(roi["id"], dlg.get_data())

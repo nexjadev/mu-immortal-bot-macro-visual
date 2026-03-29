@@ -158,7 +158,86 @@ class VisualDetector:
 
         result = cv2.matchTemplate(crop_gray, tpl, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, _ = cv2.minMaxLoc(result)
+        
+        # Depuración: Mostrar información en consola
+        print(f"[MatchTemplate] Template: {Path(template_path).name} | "
+              f"Threshold: {threshold:.2f} | Match: {max_val:.4f} | "
+              f"Found: {'YES' if max_val >= threshold else 'NO'}")
+
         return bool(max_val >= threshold)
+
+    def find_color(
+        self,
+        frame: Image.Image,
+        roi: dict,
+        target_color: list[int],
+        tolerance: int,
+        min_ratio: float = 0.05,
+    ) -> bool:
+        """Busca un color objetivo dentro del ROI del fotograma.
+
+        Recorre todos los píxeles del recorte y comprueba si cada uno
+        está dentro de ``tolerance`` en los tres canales RGB.  Retorna
+        ``True`` solo cuando la fracción de píxeles coincidentes es
+        mayor o igual a ``min_ratio``.
+
+        Args:
+            frame:        Fotograma completo (PIL.Image en modo RGB).
+            roi:          Dict ``{"x", "y", "w", "h"}`` en píxeles.
+            target_color: Lista ``[R, G, B]`` con valores en [0, 255].
+            tolerance:    Máxima diferencia permitida por canal (0-255).
+            min_ratio:    Fracción mínima de píxeles coincidentes para
+                          considerar el color presente (0.0-1.0).
+                          Por defecto 0.05 (5 %).
+
+        Returns:
+            ``True`` si la proporción de píxeles coincidentes >= min_ratio.
+
+        Raises:
+            ValueError: Si ``tolerance`` no está en [0, 255], si
+                        ``min_ratio`` no está en [0.0, 1.0], o si
+                        ``target_color`` no es una lista de 3 ints
+                        en [0, 255].
+        """
+        if not (0 <= tolerance <= 255):
+            raise ValueError(
+                f"tolerance debe estar en [0, 255], recibido: {tolerance}"
+            )
+        if not (0.0 <= min_ratio <= 1.0):
+            raise ValueError(
+                f"min_ratio debe estar en [0.0, 1.0], recibido: {min_ratio}"
+            )
+        if (
+            not isinstance(target_color, (list, tuple))
+            or len(target_color) != 3
+            or not all(isinstance(c, int) and 0 <= c <= 255 for c in target_color)
+        ):
+            raise ValueError(
+                "target_color debe ser una lista de 3 enteros en [0, 255]"
+            )
+
+        import numpy as np  # lazy: no rompe entornos sin numpy
+
+        frame_np = np.array(frame.convert("RGB"), dtype=np.int16)
+        crop = frame_np[
+            roi["y"] : roi["y"] + roi["h"],
+            roi["x"] : roi["x"] + roi["w"],
+        ]
+
+        tc = np.array(target_color, dtype=np.int16)
+        diff = np.abs(crop - tc)                          # (h, w, 3)
+        matches = np.all(diff <= tolerance, axis=2)       # (h, w) bool
+        total_px = matches.size
+        matched_px = int(np.sum(matches))
+        ratio = matched_px / total_px if total_px > 0 else 0.0
+        found = ratio >= min_ratio
+
+        print(
+            f"[FindColor] target={target_color} tol={tolerance} "
+            f"min_ratio={min_ratio:.2f} | matched={matched_px}/{total_px} "
+            f"({ratio:.3f}) | Found: {'YES' if found else 'NO'}"
+        )
+        return found
 
     def detect_color_change(
         self,

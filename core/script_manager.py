@@ -54,7 +54,7 @@ class ScriptManager:
         VALID_CLICK_TYPES: Set of accepted values for ``click_type`` in actions.
     """
 
-    VALID_CLICK_TYPES: set[str] = {"single", "double", "long_press", "verify_image"}
+    VALID_CLICK_TYPES: set[str] = {"single", "double", "long_press", "verify_image", "conditional", "verify_color"}
 
     # ------------------------------------------------------------------
     # Script I/O
@@ -214,7 +214,7 @@ class ScriptManager:
             if action.get("click_type") not in self.VALID_CLICK_TYPES:
                 raise ScriptValidationError(
                     f"{prefix}.click_type",
-                    "debe ser single|double|long_press|verify_image",
+                    "debe ser single|double|long_press|verify_image|conditional",
                 )
 
             # delay_before — int >= 0
@@ -272,6 +272,127 @@ class ScriptManager:
                     raise ScriptValidationError(
                         f"{prefix}.threshold", "debe ser float en [0.0, 1.0]"
                     )
+
+            # Campos exclusivos de conditional
+            if action.get("click_type") == "conditional":
+                tp = action.get("template_path")
+                if not isinstance(tp, str) or not tp.strip():
+                    raise ScriptValidationError(
+                        f"{prefix}.template_path", "requerido para conditional"
+                    )
+                mr = action.get("max_retries")
+                if isinstance(mr, bool) or not isinstance(mr, int) or mr < 0:
+                    raise ScriptValidationError(
+                        f"{prefix}.max_retries", "debe ser int >= 0"
+                    )
+                rd = action.get("retry_delay_ms")
+                if isinstance(rd, bool) or not isinstance(rd, int) or rd < 0:
+                    raise ScriptValidationError(
+                        f"{prefix}.retry_delay_ms", "debe ser int >= 0"
+                    )
+                thr = action.get("threshold")
+                if (
+                    isinstance(thr, bool)
+                    or not isinstance(thr, (int, float))
+                    or not (0.0 <= thr <= 1.0)
+                ):
+                    raise ScriptValidationError(
+                        f"{prefix}.threshold", "debe ser float en [0.0, 1.0]"
+                    )
+                _valid_branches = {"next", "goto", "stop"}
+                on_found = action.get("on_found")
+                if on_found not in _valid_branches:
+                    raise ScriptValidationError(
+                        f"{prefix}.on_found", "debe ser next|goto|stop"
+                    )
+                if on_found == "goto":
+                    tid = action.get("on_found_target_id")
+                    if not isinstance(tid, str) or not tid.strip():
+                        raise ScriptValidationError(
+                            f"{prefix}.on_found_target_id",
+                            "requerido cuando on_found es goto",
+                        )
+                on_not_found = action.get("on_not_found")
+                if on_not_found not in _valid_branches:
+                    raise ScriptValidationError(
+                        f"{prefix}.on_not_found", "debe ser next|goto|stop"
+                    )
+                if on_not_found == "goto":
+                    tid = action.get("on_not_found_target_id")
+                    if not isinstance(tid, str) or not tid.strip():
+                        raise ScriptValidationError(
+                            f"{prefix}.on_not_found_target_id",
+                            "requerido cuando on_not_found es goto",
+                        )
+
+            # Campos exclusivos de verify_color
+            if action.get("click_type") == "verify_color":
+                tc = action.get("target_color")
+                if (
+                    not isinstance(tc, list)
+                    or len(tc) != 3
+                    or not all(
+                        isinstance(c, int) and not isinstance(c, bool) and 0 <= c <= 255
+                        for c in tc
+                    )
+                ):
+                    raise ScriptValidationError(
+                        f"{prefix}.target_color",
+                        "debe ser lista de 3 ints en [0, 255]",
+                    )
+                ct_tol = action.get("color_tolerance")
+                if (
+                    isinstance(ct_tol, bool)
+                    or not isinstance(ct_tol, int)
+                    or not (0 <= ct_tol <= 255)
+                ):
+                    raise ScriptValidationError(
+                        f"{prefix}.color_tolerance", "debe ser int en [0, 255]"
+                    )
+                mr = action.get("max_retries")
+                if isinstance(mr, bool) or not isinstance(mr, int) or mr < 0:
+                    raise ScriptValidationError(
+                        f"{prefix}.max_retries", "debe ser int >= 0"
+                    )
+                rd = action.get("retry_delay_ms")
+                if isinstance(rd, bool) or not isinstance(rd, int) or rd < 0:
+                    raise ScriptValidationError(
+                        f"{prefix}.retry_delay_ms", "debe ser int >= 0"
+                    )
+                min_ratio = action.get("min_ratio")
+                if (
+                    isinstance(min_ratio, bool)
+                    or not isinstance(min_ratio, (int, float))
+                    or not (0.0 <= min_ratio <= 1.0)
+                ):
+                    raise ScriptValidationError(
+                        f"{prefix}.min_ratio", "debe ser float en [0.0, 1.0]"
+                    )
+                _valid_branches = {"next", "goto", "stop"}
+                on_found = action.get("on_found")
+                if on_found not in _valid_branches:
+                    raise ScriptValidationError(
+                        f"{prefix}.on_found", "debe ser next|goto|stop"
+                    )
+                if on_found == "goto":
+                    tid = action.get("on_found_target_id")
+                    if not isinstance(tid, str) or not tid.strip():
+                        raise ScriptValidationError(
+                            f"{prefix}.on_found_target_id",
+                            "requerido cuando on_found es goto",
+                        )
+                on_not_found = action.get("on_not_found")
+                if on_not_found not in _valid_branches:
+                    raise ScriptValidationError(
+                        f"{prefix}.on_not_found", "debe ser next|goto|stop"
+                    )
+                if on_not_found == "goto":
+                    tid = action.get("on_not_found_target_id")
+                    if not isinstance(tid, str) or not tid.strip():
+                        raise ScriptValidationError(
+                            f"{prefix}.on_not_found_target_id",
+                            "requerido cuando on_not_found es goto",
+                        )
 
     # ------------------------------------------------------------------
     # Profile I/O
